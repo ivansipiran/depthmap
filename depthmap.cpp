@@ -87,160 +87,6 @@ int planeCount = 0;
 float getValueFromBitArray(GLubyte* bits, int w, int h, int x, int y){
     return (bits[(h-y-1)*3*w + x*3+0] + bits[(h-y-1)*3*w + x*3+1] + bits[(h-y-1)*3*w + x*3+2])/3;
 }
-/*
-void prepareDescriptors(GLubyte* bits, int w, int h, vector<WindowElement>& window, vector<Descriptor>& descriptors){
-    //Prepare candidates
-    vector<Descriptor> candidates;
-    candidates.clear();
-    for (int i = window_width/2; i< screen_width - window_width/2 -1; i++){
-        for (int j = window_height/2; j<screen_height - window_height/2 - 1; j++){
-            if (getValueFromBitArray(bits,w,h,i,j) > 0.1){
-                candidates.push_back(Descriptor(i,j));
-            }
-        }
-    }
-
-    descriptors.clear();
-    for (int i = 0; i < num_seeds; i++){
-        //Pick a candidate
-        int index = rand() % candidates.size();
-        Descriptor descriptor = candidates.at(index);
-        candidates.erase(candidates.begin()+index);
-        descriptor.setDescriptor(0);
-
-        //Build window
-        for (int j=0; j<window.size();j++){
-            int x1 = descriptor.getX() + window.at(j).getX1() - window_width/2;
-            int x2 = descriptor.getX() + window.at(j).getX2() - window_width/2;
-            int y1 = descriptor.getY() + window.at(j).getY1() - window_height/2;
-            int y2 = descriptor.getY() + window.at(j).getY2() - window_height/2;
-            if (getValueFromBitArray(bits,w,h,x1,y1) > getValueFromBitArray(bits,w,h,x2,y2)){
-                descriptor.setDescriptor(descriptor.getDescriptor()+(((unsigned int)1)<<j));
-            }
-        }
-
-        descriptors.push_back(descriptor);
-    }
-}
-
-void prepareWindow(vector<WindowElement> &window){
-    //Prepare candidates
-    vector<WindowElement> candidates;
-    for (int i = 0; i < window_height; i++){
-        for (int j = 0; j< window_width; j++){
-            for (int k = 0; k < window_height; k++){
-                for (int l = 0; l< window_width; l++){
-                    if (i!=k && j!=l){
-                        candidates.push_back(WindowElement(i,j,k,l));
-                    }
-                }
-            }
-        }
-    }
-
-    //Build window
-    window.clear();
-    for (int i = 0; i< descriptor_size; i++){
-        int index = rand() % candidates.size();
-        window.push_back(candidates.at(index));
-        candidates.erase(candidates.begin()+index);
-    }
-}
-
-void compareDescriptors(std::vector<Descriptor>& descriptors1,std::vector<Descriptor>& descriptors2, int axis, int& pairCount,float& linePosition){
-    linePosition = 0.0;
-    pairCount = 0;
-    for (int i = 0; i< descriptors1.size(); i++){
-        for (int j = 0; j< descriptors2.size(); j++){
-            unsigned int ixor = descriptors1.at(i).getDescriptor() ^ descriptors2.at(j).getDescriptor();
-            unsigned int nDiffBits = 0;
-            while(ixor){
-                nDiffBits += ixor & 1;
-                ixor >>= 1;
-            }
-            if (nDiffBits < bit_diff_threshold){
-                if (axis){
-                    linePosition += ((float)(descriptors1.at(i).getY() + descriptors2.at(j).getY()))/2.0;
-                }
-                else{
-                    linePosition += ((float)(descriptors1.at(i).getX() + descriptors2.at(j).getX()))/2.0;
-                }
-                pairCount++;
-                j=descriptors2.size();
-            }
-        }
-    }
-    linePosition /= ((float)pairCount);
-}
-
-void printLineOfSymmetry(GLubyte* bits,int w,int h,int axis,float linePosition){
-     if (axis){
-         int y = (int) linePosition;
-         for (int i = 0; i< screen_width; i++){
-            bits[(h-y-1)*3*w + i*3+0] = 255;
-            bits[(h-y-1)*3*w + i*3+1] = 255;
-            bits[(h-y-1)*3*w + i*3+2] = 255;
-         }
-     }
-     else{
-         int x = (int) linePosition;
-         for (int i = 0; i< screen_height; i++){
-            bits[(h-i-1)*3*w + x*3+0] = 255;
-            bits[(h-i-1)*3*w + x*3+1] = 255;
-            bits[(h-i-1)*3*w + x*3+2] = 255;
-         }
-     }
-}
-
-void findLinesOfSymmetry(GLubyte* bits, int w, int h, float &xLinePosition, int &xPairCount, float &yLinePosition, int &yPairCount){
-    //Prepare window
-    vector<WindowElement> window;
-    prepareWindow(window);
-
-    //Get descriptors for the current image
-    std::vector<Descriptor> descriptors;
-    prepareDescriptors(bits,w,h,window,descriptors);
-
-    //Invert window (x axis)
-    vector<WindowElement> xWindow;
-    for (int i = 0; i< window.size(); i++){
-        xWindow.push_back(WindowElement(window_width-(window.at(i).getX1()+1),window.at(i).getY1(),window_width-(window.at(i).getX2()+1),window.at(i).getY2()));
-    }
-
-    //Get descriptors (x axis)
-    std::vector<Descriptor> xDescriptors;
-    prepareDescriptors(bits,w,h,xWindow,xDescriptors);
-
-    //Compare descriptors (x axis)
-    xPairCount = 0;
-    xLinePosition = 0.0;
-    compareDescriptors(descriptors,xDescriptors,0,xPairCount,xLinePosition);
-
-    //Print line of symmetry in bit array
-    if (xPairCount > pair_count_threshold){
-        printLineOfSymmetry(bits,w,h,0,xLinePosition);
-    }
-
-    //Invert window (y axis)
-    vector<WindowElement> yWindow;
-    for (int i = 0; i< window.size(); i++){
-        yWindow.push_back(WindowElement(window.at(i).getX1(),window_height-(window.at(i).getY1()+1),window.at(i).getX2(),window_height-(window.at(i).getY2()+1)));
-    }
-
-    //Get descriptors (y axis)
-    std::vector<Descriptor> yDescriptors;
-    prepareDescriptors(bits,w,h,yWindow,yDescriptors);
-
-    //Compare descriptors (y axis)
-    yPairCount = 0;
-    yLinePosition = 0.0;
-    compareDescriptors(descriptors,yDescriptors,1,yPairCount,yLinePosition);
-
-    //Print line of symmetry in bit array
-    if (yPairCount > pair_count_threshold){
-        printLineOfSymmetry(bits,w,h,1,yLinePosition);
-    }
-}*/
 
 ////////////////////////////////////////////////////////////
 // OTHER METHODS
@@ -444,187 +290,6 @@ void normalize(float * v){
     v[1]/=magnitude;
     v[2]/=magnitude;
 }
-/*
-Mesh * createPlaneFromCoefficients(float * coefficients){
-    //Initialize mesh
-    Mesh * mesh = new Mesh();
-    mesh->nverts = 4;
-    mesh->nfaces = 2;
-    mesh->scale[0] = mymesh->scale[0];
-    mesh->scale[1] = mymesh->scale[1];
-    mesh->scale[2] = mymesh->scale[2];
-
-    //Find center of mesh
-    float distance = (coefficients[0]*mymesh->center[0] + coefficients[1]*mymesh->center[1] + coefficients[2]*mymesh->center[2] + coefficients[3]);
-    mesh->center[0] = mymesh->center[0] + distance*coefficients[0];
-    mesh->center[1] = mymesh->center[1] + distance*coefficients[1];
-    mesh->center[2] = mymesh->center[2] + distance*coefficients[2];
-
-    //Find two perpendicular vector
-    float v1[3];
-    float v2[3];
-
-    if (coefficients[0]==0){
-        if (coefficients[1]==0){
-            if (coefficients[2]==0){
-                //Should never get here
-                v1[0] = v1[1] = v1[2] = v2[0] = v2[1] = v2[2] = 0.0;
-            }
-            else{
-                //X axis and Y axis
-                v1[0] = 1.0;
-                v1[1] = 0.0;
-                v1[2] = 0.0;
-                v2[0] = 0.0;
-                v2[1] = 1.0;
-                v2[2] = 0.0;
-            }
-        }
-        else{
-            if (coefficients[2]==0){
-                //X axis and Z axis
-                v1[0] = 1.0;
-                v1[1] = 0.0;
-                v1[2] = 0.0;
-                v2[0] = 0.0;
-                v2[1] = 0.0;
-                v2[2] = 1.0;
-            }
-            else{
-                //X axis and YZ plane
-                v1[0] = 1.0;
-                v1[1] = 0.0;
-                v1[2] = 0.0;
-                v2[0] = 0.0;
-                v2[1] = coefficients[2];
-                v2[2] = -coefficients[1];
-                normalize(v2);
-            }
-        }
-    }
-    else{
-        if (coefficients[1]==0){
-            if (coefficients[2]==0){
-                //Y axis and Z axis
-                v1[0] = 0.0;
-                v1[1] = 1.0;
-                v1[2] = 0.0;
-                v2[0] = 0.0;
-                v2[1] = 0.0;
-                v2[2] = 1.0;
-            }
-            else{
-                //Y axis and XZ plane
-                v1[0] = 0.0;
-                v1[1] = 1.0;
-                v1[2] = 0.0;
-                v2[0] = coefficients[2];
-                v2[1] = 0.0;
-                v2[2] = -coefficients[0];
-                normalize(v2);
-            }
-        }
-        else{
-            if (coefficients[2]==0){
-                //Z axis and XY plane
-                v1[0] = 0.0;
-                v1[1] = 0.0;
-                v1[2] = 1.0;
-                v2[0] = coefficients[1];
-                v2[1] = -coefficients[0];
-                v2[2] = 0.0;
-                normalize(v2);
-            }
-            else{
-                //Could be any combination (YZ and XZ planes)
-                v1[0] = 0.0;
-                v1[1] = coefficients[2];
-                v1[2] = -coefficients[1];
-                v2[0] = coefficients[1]*coefficients[1] + coefficients[2]*coefficients[2];
-                v2[1] = -coefficients[0]*coefficients[1];
-                v2[2] = -coefficients[0]*coefficients[2];
-                normalize(v1);
-                normalize(v2);
-            }
-        }
-    }
-
-    //Separate memory
-    mesh->verts = new Vertex [mesh->nverts];
-    assert(mesh->verts);
-    mesh->faces = new Face [mesh->nfaces];
-    assert(mesh->faces);
-
-    //Create auxiliary variables
-    float v1Displacement = 1/mymesh->scale[0];
-    float v2Displacement = 1/mymesh->scale[1];
-
-    //Create vertices
-    Vertex* vert = &mesh->verts[0];
-    vert->index = 0;
-    vert->normal[0] = 0.0;
-    vert->normal[1] = 0.0;
-    vert->normal[2] = 0.0;
-    vert->x = mesh->center[0] + v1Displacement*v1[0] + v2Displacement*v2[0];
-    vert->y = mesh->center[1] + v1Displacement*v1[1] + v2Displacement*v2[1];
-    vert->z = mesh->center[2] + v1Displacement*v1[2] + v2Displacement*v2[2];
-    vert->num_faces = 1;
-
-    vert = &mesh->verts[1];
-    vert->index = 1;
-    vert->normal[0] = coefficients[0];
-    vert->normal[1] = coefficients[1];
-    vert->normal[2] = coefficients[2];
-    vert->x = mesh->center[0] - v1Displacement*v1[0] + v2Displacement*v2[0];
-    vert->y = mesh->center[1] - v1Displacement*v1[1] + v2Displacement*v2[1];
-    vert->z = mesh->center[2] - v1Displacement*v1[2] + v2Displacement*v2[2];
-    vert->num_faces = 2;
-
-    vert = &mesh->verts[2];
-    vert->index = 2;
-    vert->normal[0] = coefficients[0];
-    vert->normal[1] = coefficients[1];
-    vert->normal[2] = coefficients[2];
-    vert->x = mesh->center[0] - v1Displacement*v1[0] - v2Displacement*v2[0];
-    vert->y = mesh->center[1] - v1Displacement*v1[1] - v2Displacement*v2[1];
-    vert->z = mesh->center[2] - v1Displacement*v1[2] - v2Displacement*v2[2];
-    vert->num_faces = 2;
-
-    vert = &mesh->verts[3];
-    vert->index = 3;
-    vert->normal[0] = 0.0;
-    vert->normal[1] = 0.0;
-    vert->normal[2] = 0.0;
-    vert->x = mesh->center[0] + v1Displacement*v1[0] - v2Displacement*v2[0];
-    vert->y = mesh->center[1] + v1Displacement*v1[1] - v2Displacement*v2[1];
-    vert->z = mesh->center[2] + v1Displacement*v1[2] - v2Displacement*v2[2];
-    vert->num_faces = 1;
-
-    //Create faces
-    Face *face = &mesh->faces[0];
-    face->nverts = 3;
-    face->verts = new Vertex *[3];
-    assert(face->verts);
-    face->verts[0] = &(mesh->verts[0]);
-    face->verts[1] = &(mesh->verts[1]);
-    face->verts[2] = &(mesh->verts[3]);
-    face->normal[0] = coefficients[0];
-    face->normal[1] = coefficients[1];
-    face->normal[2] = coefficients[2];
-
-    face = &mesh->faces[1];
-    face->nverts = 3;
-    face->verts = new Vertex *[3];
-    assert(face->verts);
-    face->verts[0] = &(mesh->verts[1]);
-    face->verts[1] = &(mesh->verts[2]);
-    face->verts[2] = &(mesh->verts[3]);
-    face->normal[0] = coefficients[0];
-    face->normal[1] = coefficients[1];
-    face->normal[2] = coefficients[2];
-
-    return mesh;
-}*/
 
 void getOff(Mesh * mesh, string filename){
     ofstream myfile;
@@ -648,22 +313,6 @@ void getOff(Mesh * mesh, string filename){
 
     myfile.close();
 }
-/*
-void createPlane(float * coefficients){
-    //Create plane mesh
-    Mesh * plane = createPlaneFromCoefficients(coefficients);
-
-    //Output mesh to file
-    string filename = "plane" + std::to_string(planeCount) + ".off";
-    getOff(plane,filename);
-    planeCount++;
-
-    //Delete mesh
-    delete[] plane->verts;
-    delete[] plane->faces;
-    delete plane;
-}
-*/
 
 bool initResources(const char* filename){
     //Read mesh
@@ -748,13 +397,7 @@ void render(float &angleX, float &angleY, float &angleZ, float &angleCam){
     glm::mat4 rotacionY = glm::rotate(glm::mat4(1.0f), glm::radians(angleY), glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4 rotacionZ = glm::rotate(glm::mat4(1.0f), glm::radians(angleZ), glm::vec3(0.0f, 0.0f, 1.0f));
     glm::mat4 model = rotacionX * rotacionY * rotacionZ * scale * traslacion;
-//    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(-mymesh->center[0], -mymesh->center[1], -mymesh->center[2]));
-//    model = glm::scale(model, glm::vec3(mymesh->scale[0], mymesh->scale[1], mymesh->scale[2]));
-//    model = glm::rotate(model, glm::radians(angleX), glm::vec3(1.0f, 0.0f, 0.0f));
-//    model = glm::rotate(model, glm::radians(angleY), glm::vec3(0.0f, 1.0f, 0.0f));
-//    model = glm::rotate(model, glm::radians(angleZ), glm::vec3(0.0f, 0.0f, 1.0f));
 
-//    glm::mat4 view  = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.5f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4 view  = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.5f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-sin(angleCam*M_PI/180.0), cos(angleCam*M_PI/180.0), 0.0f));
     glm::mat4 projection = glm::ortho<float>(-1.0,1.0,-1.0,1.0,-1.0,1.0);
 
@@ -821,7 +464,7 @@ void getBitArray(GLubyte* & bits, int & w, int & h){
     w = viewport[2];
     h = viewport[3];
     bits = new GLubyte[w*3*h];
-//    glFinish(); //finish all commands of OpenGL
+
     glPixelStorei(GL_PACK_ALIGNMENT,1); //or glPixelStorei(GL_PACK_ALIGNMENT,4);
     glPixelStorei(GL_PACK_ROW_LENGTH, 0);
     glPixelStorei(GL_PACK_SKIP_ROWS, 0);
@@ -865,120 +508,17 @@ void getPgm(GLubyte * bits, int w, int h, int loopInd, float angleCam){
     fclose(fp);
 }
 
-/*
-void rotateVector(float *normal, float angle, int axis){
-    float x = normal[0];
-    float y = normal[1];
-    float z = normal[2];
-    if (axis==0){
-        normal[0] = x;
-        normal[1] = y*cos(angle*M_PI/180.0) - z*sin(angle*M_PI/180.0);
-        normal[2] = y*sin(angle*M_PI/180.0) + z*cos(angle*M_PI/180.0);
-    }
-    else{
-        if (axis==1){
-            normal[0] = x*cos(angle*M_PI/180.0) + z*sin(angle*M_PI/180.0);
-            normal[1] = y;
-            normal[2] = -x*sin(angle*M_PI/180.0) + z*cos(angle*M_PI/180.0);
-        }
-        else{
-            normal[0] = x*cos(angle*M_PI/180.0) - y*sin(angle*M_PI/180.0);
-            normal[1] = x*sin(angle*M_PI/180.0) + y*cos(angle*M_PI/180.0);
-            normal[2] = z;
-        }
-    }
-    normalize(normal);
-}
-
-void findPlanesOfSymmetry(float xLinePosition,int xPairCount,float yLinePosition,int yPairCount,float angleX,float angleY,float angleZ,float angleCam,ofstream &outputFile){
-    //Evaluate x
-    if (xPairCount > pair_count_threshold || yPairCount > pair_count_threshold){ 
-        if (xPairCount > pair_count_threshold){
-            //Vertical plane
-            float verPlaneEq[4];
-            verPlaneEq[0] = 1.0;
-            verPlaneEq[1] = 0.0;
-            verPlaneEq[2] = 0.0;
-
-            //Rotate camera
-            rotateVector(verPlaneEq,angleCam,2);
-
-            //Reverse rotations
-            rotateVector(verPlaneEq,-angleX,0);
-            rotateVector(verPlaneEq,-angleY,1);
-            rotateVector(verPlaneEq,-angleZ,2);
-
-            float distanceFromCenter = (xLinePosition - screen_width/2)/(screen_width*mymesh->scale[0]);
-            float pointInPlane[3];
-            pointInPlane[0] = mymesh->center[0] + verPlaneEq[0]*distanceFromCenter;
-            pointInPlane[1] = mymesh->center[1] + verPlaneEq[1]*distanceFromCenter;
-            pointInPlane[2] = mymesh->center[2] + verPlaneEq[2]*distanceFromCenter;
-
-            verPlaneEq[3] = -pointInPlane[0]*verPlaneEq[0] - pointInPlane[1]*verPlaneEq[1] - pointInPlane[2]*verPlaneEq[2];
-            createPlane(verPlaneEq);
-            outputFile <<verPlaneEq[0] << " " << verPlaneEq[1] << " " << verPlaneEq[2] << " " << verPlaneEq[3] << "\n";
-        }
-
-        if (yPairCount > pair_count_threshold){
-            //Horizontal plane
-            float horPlaneEq[4];
-            horPlaneEq[0] = 0.0;
-            horPlaneEq[1] = 1.0;
-            horPlaneEq[2] = 0.0;
-
-            //Apply camara transformation
-            rotateVector(horPlaneEq,angleCam,2);
-
-            //Reverse rotations
-            rotateVector(horPlaneEq,-angleX,0);
-            rotateVector(horPlaneEq,-angleY,1);
-            rotateVector(horPlaneEq,-angleZ,2);
-
-            float distanceFromCenter = (yLinePosition - screen_height/2)/(screen_height*mymesh->scale[0]);
-            float pointInPlane[3];
-            pointInPlane[0] = mymesh->center[0] + horPlaneEq[0]*distanceFromCenter;
-            pointInPlane[1] = mymesh->center[1] + horPlaneEq[1]*distanceFromCenter;
-            pointInPlane[2] = mymesh->center[2] + horPlaneEq[2]*distanceFromCenter;
-
-            horPlaneEq[3] = -pointInPlane[0]*horPlaneEq[0] - pointInPlane[1]*horPlaneEq[1] - pointInPlane[2]*horPlaneEq[2];
-            createPlane(horPlaneEq);
-            outputFile <<horPlaneEq[0] << " " << horPlaneEq[1] << " " << horPlaneEq[2] << " " << horPlaneEq[3] << "\n";
-        }
-    }
-}*/
-
 void processImage(int loopInd, float angleX, float angleY, float angleZ, float angleCam){
-    //Timer
-    //Util::Clock clock;
-
+    
     //Get bit array
     GLubyte * bits; //RGB bits
     int w, h;
     //clock.tick();
     getBitArray(bits, w, h);
-    //clock.tick();
-    //cout << "Generate bit array time:" << clock.getTime() << endl;
-
-//    getPgm(bits,w,h,loopInd,0.0);
-
-    //Find lines of symmetry
-    //float xLinePosition, yLinePosition;
-    //int xPairCount, yPairCount;
-
-    //findLinesOfSymmetry(bits,w,h,xLinePosition,xPairCount,yLinePosition,yPairCount);
-    //clock.tick();
-    //cout << "Find line of symmetry time:" << clock.getTime() << endl;
-
-    //Find planes of symmetry
-    //findPlanesOfSymmetry(xLinePosition,xPairCount,yLinePosition,yPairCount,angleX,angleY,angleZ,angleCam,outputFile);
-    //clock.tick();
-    //cout << "Find plane of symmetry time:" << clock.getTime() << endl;
-
+    
     //Output PGM file
     getPgm(bits,w,h,loopInd,angleCam);
-    //clock.tick();
-    //cout << "Generate pgm time:" << clock.getTime() << endl;
-
+    
     //Delete bit array
     delete[] bits;
 }
@@ -994,12 +534,7 @@ int main(int argc, char *argv[])
         cout<<"You must provide an OFF file as parameter"<<endl;
         exit(EXIT_FAILURE);
     }
-    /*fs::path full_path = fs::system_complete( fs::path( argv[1] ) );
-    if(!fs::exists( full_path ) || fs::is_directory( full_path ) ){
-        cout<<"File not found"<<endl;
-        exit(EXIT_FAILURE);
-    }*/
-
+    
     //Initialize random seed
     srand(time(NULL));
 
@@ -1008,10 +543,6 @@ int main(int argc, char *argv[])
 
     //Initialize resources
     initResources(argv[1]);
-
-    //Create output file
-    //ofstream outputFile;
-    //outputFile.open("output.txt");
 
     //Loop
     
@@ -1026,20 +557,13 @@ int main(int argc, char *argv[])
             //Render an image
             
             render(angleX, angleY, angleZ, angleCam);
-            
-//            cout << "Rendering time:" << clock.getTime() << "\n";
-
             //Process the image
-            
             processImage(i, angleX, angleY, angleZ, angleCam);
            
-//            cout << "Processing time:" << clock.getTime() << "\n";
         }
     }
 
-    //Close output file
-    //outputFile.close();
-
+   
     //Free resources
     freeResources();
 
